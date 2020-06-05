@@ -1,19 +1,19 @@
-mod lfu;
+mod cache;
+mod helper;
 
+use std::io;
 
 fn main() {
-    let mut lfu_cache = lfu::LFU::LFUCache::new(5);
-    lfu_cache.put(1, 1);
-    // lfu.put(1, 2);
-    // lfu.put(1, 3);
-    lfu_cache.get(1);
-    lfu_cache.put(2, 1);
-
-    lfu_cache.get(2);
-
-    // lfu.put(2, 1);
-    // lfu.put(2, 1);
-    // lfu.put(2, 1);
-
-    println!("{:?}", lfu_cache)
+    let message = helper::process::commands();
+    println!("{}", message);
+    
+    let mut lfu_cache = cache::LFU::LFUCache::new(0);
+    loop {
+        let mut input = String::new();
+        io::stdin()
+        .read_line(&mut input)
+        .expect("failed to read input");
+        helper::process::handle_input(&mut lfu_cache, &mut input)
+    }
+    
 }

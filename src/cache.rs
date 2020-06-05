@@ -3,6 +3,8 @@ pub mod LFU {
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use std::fmt;
+
 #[derive(Debug)]
 pub struct LFUCache {
     len: i32,
@@ -38,6 +40,33 @@ impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
     }
+}
+
+impl fmt::Display for LFUCache {
+fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    print!("length: {}\n", self.len);
+    print!("capacity: {}\n", self.cap);
+    if self.len == 0 {
+        return write!(f, "[empty]")
+    }
+    fn print_child(ch: Rc<RefCell<Node>>) {
+        print!("[ key: {}, value: {} ]", ch.borrow().key, ch.borrow().val);
+        if ch.borrow().next.is_some() {
+            print!(" -> ");
+            print_child(ch.borrow().next.as_ref().unwrap().clone())
+        }
+    }
+    fn dis(freq: Rc<RefCell<Freq>>){
+        print!("frequency {} : ", freq.borrow().f);
+        print_child(freq.borrow().head.as_ref().unwrap().clone());
+        if freq.borrow().next.is_some() {
+            print!("\n");
+            dis(freq.borrow().next.as_ref().unwrap().clone())
+        }
+    }
+    dis(self.head.as_ref().unwrap().clone());
+    write!(f, "")
+}
 }
 
 #[derive(Debug)]
@@ -437,6 +466,15 @@ impl LFUCache {
             }
         }
     }
+
+    pub fn clear_cache(&mut self) {
+        self.keys.drain();
+        self.freqs.drain();
+        let new_freq = Rc::new(RefCell::new(Freq::new(1)));
+        self.freqs.insert(1, new_freq.clone());
+        self.head = Some(new_freq.clone());
+        self.len = 0
+    } 
 
     fn invalidate(&mut self) {
 
