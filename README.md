@@ -1,2 +1,0 @@
-# LFUcache
-LFU cache implementation
