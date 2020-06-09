@@ -1,212 +1,118 @@
-
 pub mod LFU {
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::{Rc, Weak};
-use std::fmt;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::fmt;
+    use std::rc::{Rc, Weak};
 
-#[derive(Debug)]
-pub struct LFUCache {
-    len: i32,
-    cap: i32,
-    keys: HashMap<i32, Rc<RefCell<Node>>>,
-    freqs: HashMap<i32, Rc<RefCell<Freq>>>,
-    head: Option<Rc<RefCell<Freq>>>,
-}
-#[derive(Debug)]
-struct Node {
-    key: i32,
-    val: i32,
-    freq: i32,
-    next: Option<Rc<RefCell<Node>>>,
-    prev: Option<Weak<RefCell<Node>>>,
-    parent: Option<Weak<RefCell<Freq>>>,
-}
-
-impl Node {
-    fn new(key: i32, value: i32) -> Self {
-        Node {
-            key: key,
-            val: value,
-            freq: 1,
-            next: None,
-            prev: None,
-            parent: None,
-        }
+    #[derive(Debug)]
+    pub struct LFUCache {
+        len: i32,
+        cap: i32,
+        keys: HashMap<i32, Rc<RefCell<Node>>>,
+        freqs: HashMap<i32, Rc<RefCell<Freq>>>,
+        head: Option<Rc<RefCell<Freq>>>,
     }
-}
-
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
+    #[derive(Debug)]
+    struct Node {
+        key: i32,
+        val: i32,
+        freq: i32,
+        next: Option<Rc<RefCell<Node>>>,
+        prev: Option<Weak<RefCell<Node>>>,
+        parent: Option<Weak<RefCell<Freq>>>,
     }
-}
 
-impl fmt::Display for LFUCache {
-fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    print!("length: {}\n", self.len);
-    print!("capacity: {}\n", self.cap);
-    if self.len == 0 {
-        return write!(f, "[empty]")
-    }
-    fn print_child(ch: Rc<RefCell<Node>>) {
-        print!("[ key: {}, value: {} ]", ch.borrow().key, ch.borrow().val);
-        if ch.borrow().next.is_some() {
-            print!(" -> ");
-            print_child(ch.borrow().next.as_ref().unwrap().clone())
-        }
-    }
-    fn dis(freq: Rc<RefCell<Freq>>){
-        print!("frequency {} : ", freq.borrow().f);
-        print_child(freq.borrow().head.as_ref().unwrap().clone());
-        if freq.borrow().next.is_some() {
-            print!("\n");
-            dis(freq.borrow().next.as_ref().unwrap().clone())
-        }
-    }
-    dis(self.head.as_ref().unwrap().clone());
-    write!(f, "")
-}
-}
-
-#[derive(Debug)]
-struct Freq {
-    f: i32,
-    head: Option<Rc<RefCell<Node>>>,
-    tail: Option<Rc<RefCell<Node>>>,
-    next: Option<Rc<RefCell<Freq>>>,
-    prev: Option<Weak<RefCell<Freq>>>,
-}
-
-impl Freq {
-    fn new(frequency: i32) -> Self {
-        Freq {
-            f: frequency,
-            head: None,
-            tail: None,
-            next: None,
-            prev: None,
-        }
-    }
-}
-
-impl LFUCache {
-    pub fn new(capacity: i32) -> Self {
-        let freq = Rc::new(RefCell::new(Freq::new(1)));
-        let mut f: HashMap<i32, Rc<RefCell<Freq>>> = HashMap::new();
-        f.insert(1, freq.clone());
-        LFUCache {
-            head: Some(freq.clone()),
-            keys: HashMap::new(),
-            freqs: f,
-            cap: capacity,
-            len: 0,
+    impl Node {
+        fn new(key: i32, value: i32) -> Self {
+            Node {
+                key: key,
+                val: value,
+                freq: 1,
+                next: None,
+                prev: None,
+                parent: None,
+            }
         }
     }
 
-    fn move_node(&mut self, node: Rc<RefCell<Node>>) {
-        node.borrow_mut().freq += 1;
-
-        if node
-            .borrow()
-            .parent
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap()
-            .borrow()
-            .next
-            .is_none()
-        {
-            /*
-            ///
-            ///
-            ///                 IF THE NODE DOESNT HAVE NEXT FREQUENCY NODE
-            ///
-            ///
-            ///
-            /// */
-
-            /* CREATE NEW PARENT */
-            let next_parent = Rc::new(RefCell::new(Freq::new(node.borrow().freq)));
-            self.freqs.insert(node.borrow().freq, next_parent.clone());
-
-            /* SET THE REFERENCE TO A NEW PARENT NODE FROM PREVIOUS PARENT */
-            node.borrow_mut()
-                .parent
-                .as_mut()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .next = Some(next_parent.clone());
-
-            /*  MAKE NEW PARENT POINT TO THE PREVIOUS PARENT  */
-            next_parent.borrow_mut().prev = Some(Rc::downgrade(
-                &node
-                    .borrow()
-                    .parent
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .clone(),
-            ));
-
-            /*   CONFIGURE NEW HEAD AND TAIL FOR NEW PARENT   */
-            next_parent.borrow_mut().head = Some(node.clone());
-            next_parent.borrow_mut().tail = Some(node.clone());
-
-            /*   ATTACH NODE TO A NEW PARENT   */
-            node.borrow_mut().parent = Some(Rc::downgrade(&next_parent.clone()));
+    impl PartialEq for Node {
+        fn eq(&self, other: &Self) -> bool {
+            self.key == other.key
         }
-        /*
-                         BY THIS TIME WE SURE WE HAVE NEXT PARENT NODE.
-                        NEXT THING WE NEED TO CHECK, WHETHER NEXT FREQUENCY NODE HAS THE SAME
-                        FREQUENCY AS OUR NODE
-        */
+    }
 
-        if node
-            .borrow()
-            .parent
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap()
-            .borrow()
-            .next
-            .is_some()
-            && node.borrow().freq
-                < node
-                    .borrow()
-                    .parent
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .borrow()
-                    .next
-                    .as_ref()
-                    .unwrap()
-                    .borrow()
-                    .f
-        {
-            /*
-            ///
-            ///
-            ///
-            ///                 IF THE NEXT PARENT NODE FREQUENCY GREATER THAN NODE NEW FREQUENCY
-            ///
-            ///
-            ///
-            /// */
+    impl fmt::Display for LFUCache {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "length: {}\n", self.len);
+            write!(f, "capacity: {}\n", self.cap);
+            if self.len == 0 {
+                return write!(f, "[empty]");
+            }
+            fn print_child(f: &mut fmt::Formatter<'_>, ch: Rc<RefCell<Node>>) {
+                write!(
+                    f,
+                    "[ key: {}, value: {} ]",
+                    ch.borrow().key,
+                    ch.borrow().val
+                );
+                if ch.borrow().next.is_some() {
+                    print!(" -> ");
+                    print_child(f, ch.borrow().next.as_ref().unwrap().clone())
+                }
+            }
+            fn dis(f: &mut fmt::Formatter<'_>, freq: Rc<RefCell<Freq>>) {
+                print!("frequency {} : ", freq.borrow().f);
+                print_child(f, freq.borrow().head.as_ref().unwrap().clone());
+                if freq.borrow().next.is_some() {
+                    print!("\n");
+                    dis(f, freq.borrow().next.as_ref().unwrap().clone())
+                }
+            }
+            dis(f, self.head.as_ref().unwrap().clone());
+            write!(f, "")
+        }
+    }
 
-            /*  WE CREATE NEW PARENT NODE TO INSERT BETWEEN NODE PARENT AND NEXT PARENT */
-            let new_parent = Rc::new(RefCell::new(Freq::new(node.borrow().freq)));
-            self.freqs.insert(node.borrow().freq, new_parent.clone());
+    #[derive(Debug)]
+    struct Freq {
+        f: i32,
+        head: Option<Rc<RefCell<Node>>>,
+        tail: Option<Rc<RefCell<Node>>>,
+        next: Option<Rc<RefCell<Freq>>>,
+        prev: Option<Weak<RefCell<Freq>>>,
+    }
 
-            /* MAKE NEXT FREQUENCY NODE TO POINT TO OUR NEW PARENT NODE */
-            node.borrow()
+    impl Freq {
+        fn new(frequency: i32) -> Self {
+            Freq {
+                f: frequency,
+                head: None,
+                tail: None,
+                next: None,
+                prev: None,
+            }
+        }
+    }
+
+    impl LFUCache {
+        pub fn new(capacity: i32) -> Self {
+            let freq = Rc::new(RefCell::new(Freq::new(1)));
+            let mut f: HashMap<i32, Rc<RefCell<Freq>>> = HashMap::new();
+            f.insert(1, freq.clone());
+            LFUCache {
+                head: Some(freq.clone()),
+                keys: HashMap::new(),
+                freqs: f,
+                cap: capacity,
+                len: 0,
+            }
+        }
+
+        fn move_node(&mut self, node: Rc<RefCell<Node>>) {
+            node.borrow_mut().freq += 1;
+
+            if node
+                .borrow()
                 .parent
                 .as_ref()
                 .unwrap()
@@ -214,175 +120,22 @@ impl LFUCache {
                 .unwrap()
                 .borrow()
                 .next
-                .as_ref()
-                .unwrap()
-                .borrow_mut()
-                .prev = Some(Rc::downgrade(&new_parent.clone()));
-
-            /*   MAKE OUR NEW PARENT POINT TO THE NEXT FREQUENCY NODE  */
-            new_parent.borrow_mut().next = Some(
-                node.borrow()
-                    .parent
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .borrow()
-                    .next
-                    .as_ref()
-                    .unwrap()
-                    .clone(),
-            );
-
-            /*  MAKE OUR NEW PARENT TO POINT TO THE OLD ONE  */
-            new_parent.borrow_mut().prev = Some(Rc::downgrade(
-                &node
-                    .borrow()
-                    .parent
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .clone(),
-            ));
-
-            /*   MAKE OUR CURRENT PARENT POINT TO THE NEW PARENT   */
-            node.borrow_mut()
-                .parent
-                .as_mut()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .next = Some(new_parent.clone());
-
-            /*   NEW HEAD AND TAIL   */
-            new_parent.borrow_mut().head = Some(node.clone());
-            new_parent.borrow_mut().tail = Some(node.clone());
-
-            /*   ATTACH NODE TO A NEW PARENT   */
-            node.borrow_mut().parent = Some(Rc::downgrade(&new_parent.clone()));
-        }
-
-        /*   CHECK IF WE GOT APPROPRIATE PARENT   */
-        if node
-            .borrow()
-            .parent
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap()
-            .borrow()
-            .f
-            != node.borrow().freq
-        {
-            let parent = self.freqs.get(&node.borrow().freq).unwrap();
-
-            parent.borrow_mut().tail.as_mut().unwrap().borrow_mut().next = Some(node.clone());
-
-            node.borrow_mut().parent = Some(Rc::downgrade(&parent.clone()));
-        }
-
-        /*
-
-                    BY THIS TIME WE SURE WE HAVE PARENT FREQUENCY NODE WITH APPROPRIATE FREQUENCY
-        */
-
-        /* CONSIDER 4 CASES */
-
-        /*  1. OUR NODE HAS BOTH PREVIOUS AND NEXT NODES  */
-        if node.borrow().prev.is_some() && node.borrow().next.is_some() {
-            let next_mut = node.borrow_mut().next.as_mut().unwrap().clone();
-            let next = node.borrow().next.as_ref().unwrap().clone();
-
-            let prev_mut = node
-                .borrow_mut()
-                .prev
-                .as_mut()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .clone();
-            let prev = node
-                .borrow()
-                .prev
-                .as_ref()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .clone();
-
-            prev_mut.borrow_mut().next = Some(next);
-            next_mut.borrow_mut().prev = Some(Rc::downgrade(&prev));
-
-            node.borrow_mut().prev = None;
-            node.borrow_mut().next = None;
-
-        /*  2. OUR NODE HAS ONLY PREVIOUS NODE  */
-        } else if node.borrow().prev.is_some() {
-            let parent = self.freqs.get(&(node.borrow().freq - 1)).unwrap();
-            parent.borrow_mut().tail = Some(
-                node.borrow()
-                    .prev
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .clone(),
-            );
-
-            /*     AND GET RID OF THE PREVIOUS NODE POINTER     */
-            node.borrow_mut()
-                .prev
-                .as_mut()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .next = None;
-            node.borrow_mut().prev = None;
-        } else if node.borrow().next.is_some() {
-            /*  3. OUR NODE HAS ONLY NEXT NODE  */
-            let parent = self.freqs.get(&(node.borrow().freq - 1)).unwrap();
-            parent.borrow_mut().head = Some(node.borrow().next.as_ref().unwrap().clone());
-            node.borrow_mut().next.as_mut().unwrap().borrow_mut().prev = None;
-            node.borrow_mut().next = None;
-        } else {
-            /*  4. OUR NODE HAS NEITHER PREVIOUS NOR NEXT NODES  */
-
-            /*THIS MEANS IT CAN BE BOTH HEAD AND TAIL*/
-            if *self
-                .head
-                .as_ref()
-                .unwrap()
-                .borrow()
-                .head
-                .as_ref()
-                .unwrap()
-                .borrow()
-                == *node.borrow()
+                .is_none()
             {
-                /*    THEN WE MOVE THE ENTIRE HEAD TO THE NEW PARENT  */
-                self.head = Some(
-                    node.borrow()
-                        .parent
-                        .as_ref()
-                        .unwrap()
-                        .upgrade()
-                        .unwrap()
-                        .clone(),
-                );
-            }
-            let old_parent = self.freqs.get_mut(&(node.borrow().freq - 1)).unwrap();
-            if old_parent.borrow().prev.is_some()
-                && old_parent
-                    .borrow()
-                    .prev
-                    .as_ref()
-                    .unwrap()
-                    .upgrade()
-                    .is_some()
-            {
+                /*
+                ///
+                ///
+                ///                 IF THE NODE DOESNT HAVE NEXT FREQUENCY NODE
+                ///
+                ///
+                ///
+                /// */
+
+                /* CREATE NEW PARENT */
+                let next_parent = Rc::new(RefCell::new(Freq::new(node.borrow().freq)));
+                self.freqs.insert(node.borrow().freq, next_parent.clone());
+
+                /* SET THE REFERENCE TO A NEW PARENT NODE FROM PREVIOUS PARENT */
                 node.borrow_mut()
                     .parent
                     .as_mut()
@@ -390,121 +143,350 @@ impl LFUCache {
                     .upgrade()
                     .unwrap()
                     .borrow_mut()
-                    .prev = Some(Rc::downgrade(
-                    &old_parent
+                    .next = Some(next_parent.clone());
+
+                /*  MAKE NEW PARENT POINT TO THE PREVIOUS PARENT  */
+                next_parent.borrow_mut().prev = Some(Rc::downgrade(
+                    &node
                         .borrow()
-                        .prev
-                        .as_ref()
-                        .unwrap()
-                        .upgrade()
-                        .unwrap()
-                        .clone(),
-                ));
-                old_parent
-                    .borrow_mut()
-                    .prev
-                    .as_mut()
-                    .unwrap()
-                    .upgrade()
-                    .unwrap()
-                    .borrow_mut()
-                    .next = Some(
-                    node.borrow()
                         .parent
                         .as_ref()
                         .unwrap()
                         .upgrade()
                         .unwrap()
                         .clone(),
+                ));
+
+                /*   CONFIGURE NEW HEAD AND TAIL FOR NEW PARENT   */
+                next_parent.borrow_mut().head = Some(node.clone());
+                next_parent.borrow_mut().tail = Some(node.clone());
+
+                /*   ATTACH NODE TO A NEW PARENT   */
+                node.borrow_mut().parent = Some(Rc::downgrade(&next_parent.clone()));
+            }
+            /*
+                             BY THIS TIME WE SURE WE HAVE NEXT PARENT NODE.
+                            NEXT THING WE NEED TO CHECK, WHETHER NEXT FREQUENCY NODE HAS THE SAME
+                            FREQUENCY AS OUR NODE
+            */
+
+            if node
+                .borrow()
+                .parent
+                .as_ref()
+                .unwrap()
+                .upgrade()
+                .unwrap()
+                .borrow()
+                .next
+                .is_some()
+                && node.borrow().freq
+                    < node
+                        .borrow()
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .borrow()
+                        .next
+                        .as_ref()
+                        .unwrap()
+                        .borrow()
+                        .f
+            {
+                /*
+                ///
+                ///
+                ///
+                ///                 IF THE NEXT PARENT NODE FREQUENCY GREATER THAN NODE NEW FREQUENCY
+                ///
+                ///
+                ///
+                /// */
+
+                /*  WE CREATE NEW PARENT NODE TO INSERT BETWEEN NODE PARENT AND NEXT PARENT */
+                let new_parent = Rc::new(RefCell::new(Freq::new(node.borrow().freq)));
+                self.freqs.insert(node.borrow().freq, new_parent.clone());
+
+                /* MAKE NEXT FREQUENCY NODE TO POINT TO OUR NEW PARENT NODE */
+                node.borrow()
+                    .parent
+                    .as_ref()
+                    .unwrap()
+                    .upgrade()
+                    .unwrap()
+                    .borrow()
+                    .next
+                    .as_ref()
+                    .unwrap()
+                    .borrow_mut()
+                    .prev = Some(Rc::downgrade(&new_parent.clone()));
+
+                /*   MAKE OUR NEW PARENT POINT TO THE NEXT FREQUENCY NODE  */
+                new_parent.borrow_mut().next = Some(
+                    node.borrow()
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .borrow()
+                        .next
+                        .as_ref()
+                        .unwrap()
+                        .clone(),
                 );
-            }
-            self.freqs.remove(&(node.borrow().freq - 1));
-        }
 
-        /*
-        now handle inner connections
-         */
-        let parent = self.freqs.get_mut(&node.borrow().freq).unwrap();
-        if *parent.borrow().tail.as_ref().unwrap().borrow() != *node.borrow() {
-            node.borrow_mut().prev = Some(Rc::downgrade(
-                &parent.borrow().tail.as_ref().unwrap().clone(),
-            ));
-            parent.borrow_mut().tail = Some(node.clone());
-        }
-    }
+                /*  MAKE OUR NEW PARENT TO POINT TO THE OLD ONE  */
+                new_parent.borrow_mut().prev = Some(Rc::downgrade(
+                    &node
+                        .borrow()
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .clone(),
+                ));
 
-    pub fn get(&mut self, key: i32) -> i32 {
-        match self.keys.remove(&key) {
-            Some(node) => {
-                self.move_node(node.clone());
-                self.keys.insert(key, node.clone());
-                node.borrow().val
-            }
-            None => -1,
-        }
-    }
+                /*   MAKE OUR CURRENT PARENT POINT TO THE NEW PARENT   */
+                node.borrow_mut()
+                    .parent
+                    .as_mut()
+                    .unwrap()
+                    .upgrade()
+                    .unwrap()
+                    .borrow_mut()
+                    .next = Some(new_parent.clone());
 
-    pub fn put(&mut self, key: i32, value: i32) {
-        if self.cap == 0 {
-            return;
-        }
-        match self.keys.remove(&key) {
-            Some(node) => {
-                node.borrow_mut().val = value;
-                self.move_node(node.clone());
-                self.keys.insert(key, node.clone());
+                /*   NEW HEAD AND TAIL   */
+                new_parent.borrow_mut().head = Some(node.clone());
+                new_parent.borrow_mut().tail = Some(node.clone());
+
+                /*   ATTACH NODE TO A NEW PARENT   */
+                node.borrow_mut().parent = Some(Rc::downgrade(&new_parent.clone()));
             }
-            None => {
-                let node = Rc::new(RefCell::new(Node::new(key, value)));
-                if self.len == self.cap {
-                    self.invalidate()
-                } else {
-                    self.len += 1
+
+            /*   CHECK IF WE GOT APPROPRIATE PARENT   */
+            if node
+                .borrow()
+                .parent
+                .as_ref()
+                .unwrap()
+                .upgrade()
+                .unwrap()
+                .borrow()
+                .f
+                != node.borrow().freq
+            {
+                let parent = self.freqs.get(&node.borrow().freq).unwrap();
+
+                parent.borrow_mut().tail.as_mut().unwrap().borrow_mut().next = Some(node.clone());
+
+                node.borrow_mut().parent = Some(Rc::downgrade(&parent.clone()));
+            }
+
+            /*
+
+                        BY THIS TIME WE SURE WE HAVE PARENT FREQUENCY NODE WITH APPROPRIATE FREQUENCY
+            */
+
+            /* CONSIDER 4 CASES */
+
+            /*  1. OUR NODE HAS BOTH PREVIOUS AND NEXT NODES  */
+            if node.borrow().prev.is_some() && node.borrow().next.is_some() {
+                let next = node.borrow_mut().next.as_mut().unwrap().clone();
+
+                let prev = node
+                    .borrow_mut()
+                    .prev
+                    .as_mut()
+                    .unwrap()
+                    .upgrade()
+                    .unwrap()
+                    .clone();
+
+                prev.borrow_mut().next = Some(next.clone());
+                next.borrow_mut().prev = Some(Rc::downgrade(&prev));
+
+                node.borrow_mut().prev = None;
+                node.borrow_mut().next = None;
+
+            /*  2. OUR NODE HAS ONLY PREVIOUS NODE  */
+            } else if node.borrow().prev.is_some() {
+                let parent = self.freqs.get(&(node.borrow().freq - 1)).unwrap();
+                parent.borrow_mut().tail = Some(
+                    node.borrow()
+                        .prev
+                        .as_ref()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .clone(),
+                );
+
+                /*     AND GET RID OF THE PREVIOUS NODE POINTER     */
+                node.borrow_mut()
+                    .prev
+                    .as_mut()
+                    .unwrap()
+                    .upgrade()
+                    .unwrap()
+                    .borrow_mut()
+                    .next = None;
+                node.borrow_mut().prev = None;
+            } else if node.borrow().next.is_some() {
+                /*  3. OUR NODE HAS ONLY NEXT NODE  */
+                let parent = self.freqs.get(&(node.borrow().freq - 1)).unwrap();
+                parent.borrow_mut().head = Some(node.borrow().next.as_ref().unwrap().clone());
+                node.borrow_mut().next.as_mut().unwrap().borrow_mut().prev = None;
+                node.borrow_mut().next = None;
+            } else {
+                /*  4. OUR NODE HAS NEITHER PREVIOUS NOR NEXT NODES  */
+
+                /*THIS MEANS IT CAN BE BOTH HEAD AND TAIL*/
+                if *self
+                    .head
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    .head
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    == *node.borrow()
+                {
+                    /*    THEN WE MOVE THE ENTIRE HEAD TO THE NEW PARENT  */
+                    self.head = Some(
+                        node.borrow()
+                            .parent
+                            .as_ref()
+                            .unwrap()
+                            .upgrade()
+                            .unwrap()
+                            .clone(),
+                    );
                 }
-                self.add_new(node.clone());
-                self.keys.insert(key, node);
+                let old_parent = self.freqs.get_mut(&(node.borrow().freq - 1)).unwrap();
+                if old_parent.borrow().prev.is_some()
+                    && old_parent
+                        .borrow()
+                        .prev
+                        .as_ref()
+                        .unwrap()
+                        .upgrade()
+                        .is_some()
+                {
+                    node.borrow_mut()
+                        .parent
+                        .as_mut()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .borrow_mut()
+                        .prev = Some(Rc::downgrade(
+                        &old_parent
+                            .borrow()
+                            .prev
+                            .as_ref()
+                            .unwrap()
+                            .upgrade()
+                            .unwrap()
+                            .clone(),
+                    ));
+                    old_parent
+                        .borrow_mut()
+                        .prev
+                        .as_mut()
+                        .unwrap()
+                        .upgrade()
+                        .unwrap()
+                        .borrow_mut()
+                        .next = Some(
+                        node.borrow()
+                            .parent
+                            .as_ref()
+                            .unwrap()
+                            .upgrade()
+                            .unwrap()
+                            .clone(),
+                    );
+                }
+                self.freqs.remove(&(node.borrow().freq - 1));
+            }
+
+            /*
+            now handle inner connections
+             */
+            let parent = self.freqs.get_mut(&node.borrow().freq).unwrap();
+            if *parent.borrow().tail.as_ref().unwrap().borrow() != *node.borrow() {
+                node.borrow_mut().prev = Some(Rc::downgrade(
+                    &parent.borrow().tail.as_ref().unwrap().clone(),
+                ));
+                parent.borrow_mut().tail = Some(node.clone());
             }
         }
-    }
 
-    pub fn clear_cache(&mut self) {
-        self.keys.drain();
-        self.freqs.drain();
-        let new_freq = Rc::new(RefCell::new(Freq::new(1)));
-        self.freqs.insert(1, new_freq.clone());
-        self.head = Some(new_freq.clone());
-        self.len = 0
-    } 
+        pub fn get(&mut self, key: i32) -> i32 {
+            match self.keys.remove(&key) {
+                Some(node) => {
+                    self.move_node(node.clone());
+                    self.keys.insert(key, node.clone());
+                    node.borrow().val
+                }
+                None => -1,
+            }
+        }
 
-    fn invalidate(&mut self) {
+        pub fn put(&mut self, key: i32, value: i32) {
+            if self.cap == 0 {
+                return;
+            }
+            match self.keys.remove(&key) {
+                Some(node) => {
+                    node.borrow_mut().val = value;
+                    self.move_node(node.clone());
+                    self.keys.insert(key, node.clone());
+                }
+                None => {
+                    let node = Rc::new(RefCell::new(Node::new(key, value)));
+                    if self.len == self.cap {
+                        self.invalidate()
+                    } else {
+                        self.len += 1
+                    }
+                    self.add_new(node.clone());
+                    self.keys.insert(key, node);
+                }
+            }
+        }
 
-        self.keys.remove(
-            &self
-                .head
-                .as_ref()
-                .unwrap()
-                .borrow()
-                .head
-                .as_ref()
-                .unwrap()
-                .borrow()
-                .key,
-        );
+        pub fn clear_cache(&mut self) {
+            self.keys.drain();
+            self.freqs.drain();
+            let new_freq = Rc::new(RefCell::new(Freq::new(1)));
+            self.freqs.insert(1, new_freq.clone());
+            self.head = Some(new_freq.clone());
+            self.len = 0
+        }
 
-        //if deleting node has a child, we move pointer to the next node and delete pointer to deleting node
-        if self
-            .head
-            .as_ref()
-            .unwrap()
-            .borrow()
-            .head
-            .as_ref()
-            .unwrap()
-            .borrow()
-            .next
-            .is_some()
-        {
-            let next_node = self
+        fn invalidate(&mut self) {
+            self.keys.remove(
+                &self
+                    .head
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    .head
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    .key,
+            );
+
+            //if deleting node has a child, we move pointer to the next node and delete pointer to deleting node
+            if self
                 .head
                 .as_ref()
                 .unwrap()
@@ -514,99 +496,102 @@ impl LFUCache {
                 .unwrap()
                 .borrow()
                 .next
-                .as_ref()
-                .unwrap()
-                .clone();
-            self.head.as_mut().unwrap().borrow_mut().head = Some(next_node);
-            self.head
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .head
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .prev = None;
-            return;
-        }
-        let removed = self
-            .freqs
-            .remove(&self.head.as_ref().unwrap().borrow().f)
-            .unwrap();
-
-        if removed.borrow().next.is_some()
-            && removed.borrow().prev.is_some()
-            && removed.borrow().prev.as_ref().unwrap().upgrade().is_some()
-        {
-            let prev_mut = removed
-                .borrow_mut()
-                .prev
-                .as_mut()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .clone();
-            let prev = removed
-                .borrow()
-                .prev
-                .as_ref()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .clone();
-
-            let next_mut = removed.borrow_mut().next.as_mut().unwrap().clone();
-            let next = removed.borrow().next.as_ref().unwrap().clone();
-
-            prev_mut.borrow_mut().next = Some(next);
-            next_mut.borrow_mut().prev = Some(Rc::downgrade(&prev));
-        } else if removed.borrow().next.is_some() {
-            let next_head = self.head.as_ref().unwrap().clone();
-            self.head = Some(next_head.borrow().next.as_ref().unwrap().clone());
-            self.head.as_mut().unwrap().borrow_mut().prev = None;
-        } else {
-            let freq = Rc::new(RefCell::new(Freq::new(1)));
-            self.head = Some(freq.clone());
-            self.freqs.insert(1, freq);
-        }
-    }
-
-    fn add_new(&mut self, node: Rc<RefCell<Node>>) {
-        if self.head.as_ref().unwrap().borrow().f != 1 {
-            let freq_one = Rc::new(RefCell::new(Freq::new(1)));
-            self.freqs.insert(1, freq_one.clone());
-            freq_one.borrow_mut().next = Some(self.head.as_ref().unwrap().clone());
-            self.head.as_mut().unwrap().borrow_mut().prev = Some(Rc::downgrade(&freq_one));
-            self.head = Some(freq_one.clone());
-        }
-
-        if self.head.as_ref().unwrap().borrow().tail.is_some() {
-            self.head
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .tail
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .next = Some(node.clone());
-            node.borrow_mut().prev = Some(Rc::downgrade(
-                &self
+                .is_some()
+            {
+                let next_node = self
                     .head
                     .as_ref()
                     .unwrap()
                     .borrow()
-                    .tail
+                    .head
                     .as_ref()
                     .unwrap()
-                    .clone(),
-            ));
+                    .borrow()
+                    .next
+                    .as_ref()
+                    .unwrap()
+                    .clone();
+                self.head.as_mut().unwrap().borrow_mut().head = Some(next_node);
+                self.head
+                    .as_mut()
+                    .unwrap()
+                    .borrow_mut()
+                    .head
+                    .as_mut()
+                    .unwrap()
+                    .borrow_mut()
+                    .prev = None;
+                return;
+            }
+            let removed = self
+                .freqs
+                .remove(&self.head.as_ref().unwrap().borrow().f)
+                .unwrap();
+
+            if removed.borrow().next.is_some()
+                && removed.borrow().prev.is_some()
+                && removed.borrow().prev.as_ref().unwrap().upgrade().is_some()
+            {
+                let prev = removed
+                    .borrow_mut()
+                    .prev
+                    .as_mut()
+                    .unwrap()
+                    .upgrade()
+                    .unwrap()
+                    .clone();
+
+                let next = removed.borrow_mut().next.as_mut().unwrap().clone();
+
+                prev.borrow_mut().next = Some(next.clone());
+                next.borrow_mut().prev = Some(Rc::downgrade(&prev));
+            } else if removed.borrow().next.is_some() {
+                let next_head = self.head.as_ref().unwrap().clone();
+                self.head = Some(next_head.borrow().next.as_ref().unwrap().clone());
+                self.head.as_mut().unwrap().borrow_mut().prev = None;
+            } else {
+                let freq = Rc::new(RefCell::new(Freq::new(1)));
+                self.head = Some(freq.clone());
+                self.freqs.insert(1, freq);
+            }
         }
-        node.borrow_mut().parent = Some(Rc::downgrade(&self.head.as_ref().unwrap().clone()));
-        self.head.as_mut().unwrap().borrow_mut().tail = Some(node.clone());
-        if self.head.as_ref().unwrap().borrow().head.is_none() {
-            self.head.as_mut().unwrap().borrow_mut().head = Some(node)
+
+        fn add_new(&mut self, node: Rc<RefCell<Node>>) {
+            if self.head.as_ref().unwrap().borrow().f != 1 {
+                let freq_one = Rc::new(RefCell::new(Freq::new(1)));
+                self.freqs.insert(1, freq_one.clone());
+                freq_one.borrow_mut().next = Some(self.head.as_ref().unwrap().clone());
+                self.head.as_mut().unwrap().borrow_mut().prev = Some(Rc::downgrade(&freq_one));
+                self.head = Some(freq_one.clone());
+            }
+
+            if self.head.as_ref().unwrap().borrow().tail.is_some() {
+                self.head
+                    .as_mut()
+                    .unwrap()
+                    .borrow_mut()
+                    .tail
+                    .as_mut()
+                    .unwrap()
+                    .borrow_mut()
+                    .next = Some(node.clone());
+                node.borrow_mut().prev = Some(Rc::downgrade(
+                    &self
+                        .head
+                        .as_ref()
+                        .unwrap()
+                        .borrow()
+                        .tail
+                        .as_ref()
+                        .unwrap()
+                        .clone(),
+                ));
+            }
+            node.borrow_mut().parent = Some(Rc::downgrade(&self.head.as_ref().unwrap().clone()));
+            self.head.as_mut().unwrap().borrow_mut().tail = Some(node.clone());
+            if self.head.as_ref().unwrap().borrow().head.is_none() {
+                self.head.as_mut().unwrap().borrow_mut().head = Some(node)
+            }
         }
     }
-}
 }
