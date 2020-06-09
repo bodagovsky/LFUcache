@@ -49,8 +49,9 @@ pub mod process {
         format!(
             "
 create [capacity]          create LFUCache holder with given capacity
-insert [key] [value]          insert value by key
+insert [key] [value]       insert or modify value by key
 get [key]                  extract value by key; returns -1 in case of wrong key
+show                       display cache nodes
 clear                      remove all values from cache
 exit                       close program
 "
